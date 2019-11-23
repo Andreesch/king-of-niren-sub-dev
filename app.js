@@ -39,7 +39,8 @@ io.on('connection', function (socket) {
     flipX: false,
     x: Math.floor(Math.random() * 400) + 50,
     y: Math.floor(Math.random() * 500) + 50,
-    playerId: socket.id
+    playerId: socket.id,
+    playerLife: 100
   };
   // send the players object to the new player
   socket.emit('currentPlayers', players);
@@ -61,6 +62,22 @@ io.on('connection', function (socket) {
     players[socket.id].flipX = movementData.flipX;
     // emit a message to all players about the player that moved
     socket.broadcast.emit('playerMoved', players[socket.id]);
+  });
+
+  socket.on('atk', function (playerIdData) {
+    socket.broadcast.emit('atk', playerIdData);
+  }
+
+  socket.on('playerAtack', function (atkData) {
+    players[atkData.playerId].playerLife -= atkData.atkDamage;
+
+    socket.emit('playerAtack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
+    socket.broadcast.emit('playerAtack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
+
+    if(players[atkData.playerId].playerLife <= 0) {
+      players[atkData.playerId].playerLife = 100;
+      io.to(atkData.playerId).emit('kill');
+    }
   });
 });
 

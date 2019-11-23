@@ -1,6 +1,8 @@
 const inputMessage = document.getElementById('inputMessage');
 const messages = document.getElementById('messages');
 
+var overlapWeapon;
+
 window.addEventListener('keydown', event => {
   if (event.which === 13) {
     sendMessage();
@@ -82,7 +84,7 @@ class WorldScene extends Phaser.Scene {
     // create map
     this.createMap();
 
-    // create player animations
+    // create player createAnimations
     this.createAnimations();
 
     // user input
@@ -121,6 +123,23 @@ class WorldScene extends Phaser.Scene {
           player.setPosition(playerInfo.x, playerInfo.y);
         }
       }.bind(this));
+    }.bind(this));
+
+    this.socket.on('playerAtack', function(atkData) {      
+      this.otherPlayers.getChildren().forEach(function (player) {
+        if (atkData.playerId === player.playerId) {
+          player.playerLife = atkData.newLife;
+          console.log(player.playerLife);
+        }
+      }.bind(this));
+    }.bind(this));
+
+    this.socket.on('kill', function () {
+      const location = this.getValidLocation();      
+      this.container.x = location.x;
+      this.container.y = location.y;
+      this.update();
+      //this.socket.emit('playerMovement', { x: location.x, y: location.y, flipX: flipX });
     }.bind(this));
 
     this.socket.on('new message', (data) => {
@@ -225,14 +244,16 @@ class WorldScene extends Phaser.Scene {
     // don't go out of the map
     this.container.body.setCollideWorldBounds(true);
 
-    this.physics.add.overlap(this.weapon, this.spawns, this.onMeetEnemy, false, this);
+    overlapWeapon = this.physics.add.overlap(this.weapon, this.otherPlayers, this.onMeetEnemy, false, this);
     this.physics.add.collider(this.container, this.spawns);
   }
 
   addOtherPlayers(playerInfo) {
-    const otherPlayer = this.add.sprite(playerInfo.x, playerInfo.y, 'player', 9);
+    const otherPlayer = this.add.sprite(playerInfo.x, playerInfo.y, 'player', 6);
     otherPlayer.setTint(Math.random() * 0xffffff);
     otherPlayer.playerId = playerInfo.playerId;
+    otherPlayer.playerLife = playerInfo.playerLife;
+    console.log(otherPlayer.playerLife);
     this.otherPlayers.add(otherPlayer);
   }
 
@@ -318,9 +339,18 @@ class WorldScene extends Phaser.Scene {
 
   onMeetEnemy(player, enemy) {
     if (this.attacking) {
-      const location = this.getValidLocation();
+        console.log(enemy.body.gameObject.playerId + " - " + enemy.body.gameObject.playerLife);
+        this.socket.emit('playerAtack', { playerId: enemy.body.gameObject.playerId, atkDamage: 10 });
+
+        overlapWeapon.active = false;
+
+        setTimeout(function() {
+          overlapWeapon.active = true;
+        }, 100);
+
+      /*const location = this.getValidLocation();
       enemy.x = location.x;
-      enemy.y = location.y;
+      enemy.y = location.y;*/
     }
   }
 
@@ -364,6 +394,7 @@ class WorldScene extends Phaser.Scene {
       }
 
       if (Phaser.Input.Keyboard.JustDown(this.cursors.space) && !this.attacking && document.activeElement !== inputMessage) {
+        this.socket.emit('atk', {playerId: this.player.playerId});
         this.attacking = true;
         setTimeout(() => {
           this.attacking = false;
