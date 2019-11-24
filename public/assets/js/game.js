@@ -111,6 +111,7 @@ class WorldScene extends Phaser.Scene {
     this.socket.on('disconnect', function (playerId) {
       this.otherPlayers.getChildren().forEach(function (player) {
         if (playerId === player.playerId) {
+          player.weapon.destroy();
           player.destroy();
         }
       }.bind(this));
@@ -118,14 +119,41 @@ class WorldScene extends Phaser.Scene {
 
     this.socket.on('playerMoved', function (playerInfo) {
       this.otherPlayers.getChildren().forEach(function (player) {
+
         if (playerInfo.playerId === player.playerId) {
-          player.flipX = playerInfo.flipX;
+
+          if(player.x < playerInfo.x) {
+            player.anims.play('left', true);
+            player.flipX = false;
+
+            player.weapon.flipX = false;
+            player.weapon.setPosition(playerInfo.x+10, playerInfo.y);
+          } else {
+            player.anims.play('right', true);
+            player.flipX = true;
+
+            player.weapon.flipX = true;
+            player.weapon.setPosition(playerInfo.x-10, playerInfo.y);
+          }
+
+          if(player.y < playerInfo.y) {
+            player.anims.play('down', true);
+          } else {
+            player.anims.play('up', true);
+          }
+
           player.setPosition(playerInfo.x, playerInfo.y);
         }
       }.bind(this));
     }.bind(this));
 
-    this.socket.on('playerAtack', function(atkData) {      
+    this.socket.on('playerMovementStop', function() {
+      this.otherPlayers.getChildren().forEach(function (player) {
+          player.anims.stop();
+      }.bind(this));
+    }.bind(this));
+
+    this.socket.on('playerAtack', function(atkData) {
       this.otherPlayers.getChildren().forEach(function (player) {
         if (atkData.playerId === player.playerId) {
           player.playerLife = atkData.newLife;
@@ -141,6 +169,22 @@ class WorldScene extends Phaser.Scene {
       this.update();
       //this.socket.emit('playerMovement', { x: location.x, y: location.y, flipX: flipX });
     }.bind(this));
+
+    this.socket.on('atk', function (playerAtkData) {
+
+      this.otherPlayers.getChildren().forEach(function (player) {
+        if (playerAtkData.playerId === player.playerId) {
+          if (player.weapon.flipX) {
+            player.weapon.angle -= 10;
+          } else {
+            player.weapon.angle += 10;
+          }
+          setTimeout(() => {
+            player.weapon.angle = 0;
+          }, 150);
+        }
+      }.bind(this));
+    }.bind(this));      
 
     this.socket.on('new message', (data) => {
       const usernameSpan = document.createElement('span');
@@ -218,6 +262,8 @@ class WorldScene extends Phaser.Scene {
       frameRate: 10,
       repeat: -1
     });
+
+
   }
 
   createPlayer(playerInfo) {
@@ -253,8 +299,13 @@ class WorldScene extends Phaser.Scene {
     otherPlayer.setTint(Math.random() * 0xffffff);
     otherPlayer.playerId = playerInfo.playerId;
     otherPlayer.playerLife = playerInfo.playerLife;
-    console.log(otherPlayer.playerLife);
     this.otherPlayers.add(otherPlayer);
+
+        // add weapon
+    otherPlayer.weapon = this.add.sprite(playerInfo.x + 10, playerInfo.y, 'sword');
+    otherPlayer.weapon.setScale(0.5);
+    otherPlayer.weapon.setSize(8, 8);
+    this.physics.world.enable(otherPlayer.weapon);
   }
 
   updateCamera() {
@@ -346,7 +397,7 @@ class WorldScene extends Phaser.Scene {
 
         setTimeout(function() {
           overlapWeapon.active = true;
-        }, 100);
+        }, 500);
 
       /*const location = this.getValidLocation();
       enemy.x = location.x;
@@ -391,10 +442,10 @@ class WorldScene extends Phaser.Scene {
         this.player.anims.play('down', true);
       } else {
         this.player.anims.stop();
+        this.socket.emit('playerMovementStop');
       }
 
       if (Phaser.Input.Keyboard.JustDown(this.cursors.space) && !this.attacking && document.activeElement !== inputMessage) {
-        this.socket.emit('atk', {playerId: this.player.playerId});
         this.attacking = true;
         setTimeout(() => {
           this.attacking = false;
@@ -403,6 +454,7 @@ class WorldScene extends Phaser.Scene {
       }
 
       if (this.attacking) {
+        this.socket.emit('atk', {playerId: this.socket.id});
         if (this.weapon.flipX) {
           this.weapon.angle -= 10;
         } else {

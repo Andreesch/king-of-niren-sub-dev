@@ -64,9 +64,14 @@ io.on('connection', function (socket) {
     socket.broadcast.emit('playerMoved', players[socket.id]);
   });
 
+  socket.on('playerMovementStop', function (movementData) {
+    socket.broadcast.emit('playerMovementStop', {playerId: socket.id});
+  });
+
   socket.on('atk', function (playerIdData) {
+    console.log(playerIdData);
     socket.broadcast.emit('atk', playerIdData);
-  }
+  });
 
   socket.on('playerAtack', function (atkData) {
     players[atkData.playerId].playerLife -= atkData.atkDamage;
