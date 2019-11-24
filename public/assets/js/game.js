@@ -1,6 +1,8 @@
 const inputMessage = document.getElementById('inputMessage');
 const messages = document.getElementById('messages');
 
+var overlapWeapon;
+
 window.addEventListener('keydown', event => {
   if (event.which === 13) {
     sendMessage();
@@ -11,30 +13,6 @@ window.addEventListener('keydown', event => {
     }
   }
 });
-
-function sendMessage() {
-  let message = inputMessage.value;
-  if (message) {
-    inputMessage.value = '';
-    $.ajax({
-      type: 'POST',
-      url: '/submit-chatline',
-      data: {
-        message,
-        refreshToken: getCookie('refreshJwt')
-      },
-      success: function(data) {},
-      error: function(xhr) {
-        console.log(xhr);
-      }
-    })
-  }
-}
-
-function addMessageElement(el) {
-  messages.append(el);
-  messages.lastChild.scrollIntoView();
-}
 
 class BootScene extends Phaser.Scene {
   constructor() {
@@ -47,19 +25,14 @@ class BootScene extends Phaser.Scene {
   preload() {
     // map tiles
     this.load.image('tiles', 'assets/map/spritesheet-extruded.png');
-    // map in json format
+    // mapa em json
     this.load.tilemapTiledJSON('map', 'assets/map/map.json');
-    // our two characters
+    // sprite do boneco
     this.load.spritesheet('player', 'assets/RPG_assets.png', {
       frameWidth: 16,
       frameHeight: 16
     });
 
-    this.load.image('golem', 'assets/images/coppergolem.png');
-    this.load.image('ent', 'assets/images/dark-ent.png');
-    this.load.image('demon', 'assets/images/demon.png');
-    this.load.image('worm', 'assets/images/giant-worm.png');
-    this.load.image('wolf', 'assets/images/wolf.png');
     this.load.image('sword', 'assets/images/attack-icon.png');
   }
 
@@ -76,27 +49,19 @@ class WorldScene extends Phaser.Scene {
   }
 
   create() {
-    io.engine.generateId = function (req) {
-      // generate a new custom id here
-      return "Wnctg4eKnD0rK8cMAAAA";
-    }
-
     this.socket = io();
     this.otherPlayers = this.physics.add.group();
 
-    // create map
+    // cria o mapa
     this.createMap();
 
-    // create player animations
+    // cria animações
     this.createAnimations();
 
-    // user input
+    // inputs do jogador (teclas)
     this.cursors = this.input.keyboard.createCursorKeys();
 
-    // create enemies
-    this.createEnemies();
-
-    // listen for web socket events
+    // Eventos socket
     this.socket.on('currentPlayers', function (players) {
       Object.keys(players).forEach(function (id) {
         if (players[id].playerId === this.socket.id) {
@@ -114,6 +79,7 @@ class WorldScene extends Phaser.Scene {
     this.socket.on('disconnect', function (playerId) {
       this.otherPlayers.getChildren().forEach(function (player) {
         if (playerId === player.playerId) {
+          player.weapon.destroy();
           player.destroy();
         }
       }.bind(this));
@@ -121,47 +87,87 @@ class WorldScene extends Phaser.Scene {
 
     this.socket.on('playerMoved', function (playerInfo) {
       this.otherPlayers.getChildren().forEach(function (player) {
+
         if (playerInfo.playerId === player.playerId) {
-          player.flipX = playerInfo.flipX;
+
+          if(player.x < playerInfo.x) {
+            player.anims.play('left', true);
+            player.flipX = false;
+
+            player.weapon.flipX = false;
+            player.weapon.setPosition(playerInfo.x+10, playerInfo.y);
+          } else {
+            player.anims.play('right', true);
+            player.flipX = true;
+
+            player.weapon.flipX = true;
+            player.weapon.setPosition(playerInfo.x-10, playerInfo.y);
+          }
+
+          if(player.y < playerInfo.y) {
+            player.anims.play('down', true);
+          } else {
+            player.anims.play('up', true);
+          }
+
           player.setPosition(playerInfo.x, playerInfo.y);
         }
       }.bind(this));
     }.bind(this));
 
-    this.socket.on('new message', (data) => {
-      const usernameSpan = document.createElement('span');
-      const usernameText = document.createTextNode(data.username);
-      usernameSpan.className = 'username';
-      usernameSpan.appendChild(usernameText);
+    this.socket.on('playerMovementStop', function() {
+      this.otherPlayers.getChildren().forEach(function (player) {
+          player.anims.stop();
+      }.bind(this));
+    }.bind(this));
 
-      const messageBodySpan = document.createElement('span');
-      const messageBodyText = document.createTextNode(data.message);
-      messageBodySpan.className = 'messageBody';
-      messageBodySpan.appendChild(messageBodyText);
+    this.socket.on('playerAtack', function(atkData) {
+      this.otherPlayers.getChildren().forEach(function (player) {
+        if (atkData.playerId === player.playerId) {
+          player.playerLife = atkData.newLife;
+          console.log(player.playerLife);
+        }
+      }.bind(this));
+    }.bind(this));
 
-      const messageLi = document.createElement('li');
-      messageLi.setAttribute('username', data.username);
-      messageLi.append(usernameSpan);
-      messageLi.append(messageBodySpan);
+    this.socket.on('kill', function () {
+      const location = this.getValidLocation();      
+      this.container.x = location.x;
+      this.container.y = location.y;
+      this.update();
+    }.bind(this));
 
-      addMessageElement(messageLi);
-    });
+    this.socket.on('atk', function (playerAtkData) {
+
+      this.otherPlayers.getChildren().forEach(function (player) {
+        if (playerAtkData.playerId === player.playerId) {
+          if (player.weapon.flipX) {
+            player.weapon.angle -= 10;
+          } else {
+            player.weapon.angle += 10;
+          }
+          setTimeout(() => {
+            player.weapon.angle = 0;
+          }, 150);
+        }
+      }.bind(this));
+    }.bind(this));      
   }
 
   createMap() {
-    // create the map
+    // Criação do mapa
     this.map = this.make.tilemap({
       key: 'map'
     });
 
-    // first parameter is the name of the tilemap in tiled
+    // Spritesheet é o nome do arquivo de tiles-map
     var tiles = this.map.addTilesetImage('spritesheet', 'tiles', 16, 16, 1, 2);
 
-    // creating the layers
+    // Cria alguns layers (enfeites)
     this.map.createStaticLayer('Grass', tiles, 0, 0);
     this.map.createStaticLayer('Obstacles', tiles, 0, 0);
 
-    // don't go out of the map
+    // Delimita o mapa
     this.physics.world.bounds.width = this.map.widthInPixels;
     this.physics.world.bounds.height = this.map.heightInPixels;
   }
@@ -207,7 +213,6 @@ class WorldScene extends Phaser.Scene {
   }
 
   createPlayer(playerInfo) {
-    // our player sprite created through the physics system
     this.player = this.add.sprite(0, 0, 'player', 6);
 
     this.container = this.add.container(playerInfo.x, playerInfo.y);
@@ -215,7 +220,7 @@ class WorldScene extends Phaser.Scene {
     this.physics.world.enable(this.container);
     this.container.add(this.player);
 
-    // add weapon
+    // adiciona espada
     this.weapon = this.add.sprite(10, 0, 'sword');
     this.weapon.setScale(0.5);
     this.weapon.setSize(8, 8);
@@ -224,83 +229,34 @@ class WorldScene extends Phaser.Scene {
     this.container.add(this.weapon);
     this.attacking = false;
 
-    // update camera
+    // atualiza camera
     this.updateCamera();
 
-    // don't go out of the map
+    // delimita o mapa
     this.container.body.setCollideWorldBounds(true);
 
-    this.physics.add.overlap(this.weapon, this.spawns, this.onMeetEnemy, false, this);
+    overlapWeapon = this.physics.add.overlap(this.weapon, this.otherPlayers, this.onMeetEnemy, false, this);
     this.physics.add.collider(this.container, this.spawns);
   }
 
   addOtherPlayers(playerInfo) {
-    const otherPlayer = this.add.sprite(playerInfo.x, playerInfo.y, 'player', 9);
+    const otherPlayer = this.add.sprite(playerInfo.x, playerInfo.y, 'player', 6);
     otherPlayer.setTint(Math.random() * 0xffffff);
     otherPlayer.playerId = playerInfo.playerId;
+    otherPlayer.playerLife = playerInfo.playerLife;
     this.otherPlayers.add(otherPlayer);
+
+    // Adiciona espada
+    otherPlayer.weapon = this.add.sprite(playerInfo.x + 10, playerInfo.y, 'sword');
+    otherPlayer.weapon.setScale(0.5);
+    otherPlayer.weapon.setSize(8, 8);
+    this.physics.world.enable(otherPlayer.weapon);
   }
 
   updateCamera() {
-    // limit camera to map
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.startFollow(this.container);
-    this.cameras.main.roundPixels = true; // avoid tile bleed
-  }
-
-  createEnemies() {
-    // where the enemies will be
-    this.spawns = this.physics.add.group({
-      classType: Phaser.GameObjects.Sprite
-    });
-    for (var i = 0; i < 20; i++) {
-      const location = this.getValidLocation();
-      // parameters are x, y, width, height
-      var enemy = this.spawns.create(location.x, location.y, this.getEnemySprite());
-      enemy.body.setCollideWorldBounds(true);
-      enemy.body.setImmovable();
-    }
-
-    // move enemies
-    this.timedEvent = this.time.addEvent({
-      delay: 3000,
-      callback: this.moveEnemies,
-      callbackScope: this,
-      loop: true
-    });
-  }
-
-  moveEnemies () {
-    this.spawns.getChildren().forEach((enemy) => {
-      const randNumber = Math.floor((Math.random() * 4) + 1);
-
-      switch(randNumber) {
-        case 1:
-          enemy.body.setVelocityX(50);
-          break;
-        case 2:
-          enemy.body.setVelocityX(-50);
-          break;
-        case 3:
-          enemy.body.setVelocityY(50);
-          break;
-        case 4:
-          enemy.body.setVelocityY(50);
-          break;
-        default:
-          enemy.body.setVelocityX(50);
-      }
-    });
-
-    setTimeout(() => {
-      this.spawns.setVelocityX(0);
-      this.spawns.setVelocityY(0);
-    }, 500);
-  }
-
-  getEnemySprite() {
-    var sprites = ['golem', 'ent', 'demon', 'worm', 'wolf'];
-    return sprites[Math.floor(Math.random() * sprites.length)];
+    this.cameras.main.roundPixels = true;
   }
 
   getValidLocation() {
@@ -323,9 +279,14 @@ class WorldScene extends Phaser.Scene {
 
   onMeetEnemy(player, enemy) {
     if (this.attacking) {
-      const location = this.getValidLocation();
-      enemy.x = location.x;
-      enemy.y = location.y;
+        console.log(enemy.body.gameObject.playerId + " - " + enemy.body.gameObject.playerLife);
+        this.socket.emit('playerAtack', { playerId: enemy.body.gameObject.playerId, atkDamage: 10 });
+
+        overlapWeapon.active = false;
+
+        setTimeout(function() {
+          overlapWeapon.active = true;
+        }, 500);
     }
   }
 
@@ -366,6 +327,7 @@ class WorldScene extends Phaser.Scene {
         this.player.anims.play('down', true);
       } else {
         this.player.anims.stop();
+        this.socket.emit('playerMovementStop');
       }
 
       if (Phaser.Input.Keyboard.JustDown(this.cursors.space) && !this.attacking && document.activeElement !== inputMessage) {
@@ -377,6 +339,7 @@ class WorldScene extends Phaser.Scene {
       }
 
       if (this.attacking) {
+        this.socket.emit('atk', {playerId: this.socket.id});
         if (this.weapon.flipX) {
           this.weapon.angle -= 10;
         } else {
@@ -414,7 +377,7 @@ var config = {
       gravity: {
         y: 0
       },
-      debug: false // set to true to view zones
+      debug: false
     }
   },
   scene: [

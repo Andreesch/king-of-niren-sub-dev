@@ -11,6 +11,7 @@
   <script src="//cdn.jsdelivr.net/npm/phaser@3.16.2/dist/phaser.min.js"></script>
   <script src="/socket.io/socket.io.js"></script>
   <script src="assets/js/client.js"></script>
+  <script src="assets/js/health-bar.js"></script>
 </head>
 
 <body class="text-center niren-background">
@@ -23,7 +24,7 @@
     <label for="client_address" class="sr-only">IP do servidor</label>
     <input type="text" id="client_address" class="form-control" placeholder="IP do servidor" required>
     <a class="btn btn-lg btn-primary btn-block white-color" onClick="signIn()">Entrar/Registro</a>
-    <a class="btn btn-lg btn-secondary btn-block" onClick="estabelishSocketConnection()">Conectar</a>
+    <a class="btn btn-lg btn-secondary btn-block" onClick="socketConnection()">Conectar</a>
     <p id="connection_status"></p>
     <!-- <a href="/forgot-password.html">Esqueceu sua senha? resete-a aqui.</a> -->
   </form>
