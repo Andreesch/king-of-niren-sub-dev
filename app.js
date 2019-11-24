@@ -12,6 +12,7 @@ const secureRoutes = require('./routes/secure');
 const passwordRoutes = require('./routes/password');
 const asyncMiddleware = require('./middleware/asyncMiddleware');
 const ChatModel = require('./models/chatModel');
+const UserModel = require('./models/userModel');
 
 // setup mongo connection
 const uri = process.env.MONGO_CONNECTION_URL;
@@ -20,7 +21,7 @@ mongoose.connection.on('error', (error) => {
   console.log(error);
   process.exit(1);
 });
-mongoose.connection.on('connected', function () {
+mongoose.connection.on('connected', function () { 
   console.log('connected to mongo');
 });
 mongoose.set('useFindAndModify', false);
@@ -31,38 +32,105 @@ const server = require('http').Server(app);
 const io = require('socket.io').listen(server);
 
 const players = {};
+const sockets = [];
 
 io.on('connection', function (socket) {
-  console.log('a user connected: ', socket.id);
-  // create a new player and add it to our players object
-  players[socket.id] = {
-    flipX: false,
-    x: Math.floor(Math.random() * 400) + 50,
-    y: Math.floor(Math.random() * 500) + 50,
-    playerId: socket.id
-  };
-  // send the players object to the new player
-  socket.emit('currentPlayers', players);
-  // update all other players of the new player
-  socket.broadcast.emit('newPlayer', players[socket.id]);
-
-  // when a player disconnects, remove them from our players object
-  socket.on('disconnect', function () {
-    console.log('user disconnected: ', socket.id);
-    delete players[socket.id];
-    // emit a message to all players to remove this player
-    io.emit('disconnect', socket.id);
-  });
-
-  // when a plaayer moves, update the player data
-  socket.on('playerMovement', function (movementData) {
-    players[socket.id].x = movementData.x;
-    players[socket.id].y = movementData.y;
-    players[socket.id].flipX = movementData.flipX;
-    // emit a message to all players about the player that moved
-    socket.broadcast.emit('playerMoved', players[socket.id]);
-  });
+  console.log('Novo usuário conectado: ', socket.id);  
+  insertNewSocketToStack(socket);
 });
+
+var insertNewSocketToStack = function(socket) {
+  sockets.push({socket: socket, socket_id: socket.id});
+  mapSocketEvents(socket);
+}
+
+var mapSocketEvents = function(socket) {
+  socket.on('login', function(data){
+    try {
+
+    UserModel.find({
+      email: data.email
+    }).then(user => {
+      if (user != null && user.length > 0) {
+        if (user[0].isValidPassword(data.password)) {
+          console.log("SENHA CORRETA");
+          createNewSocketPlayer(socket);
+        } else {
+          console.log("SENHA INCORRETA");
+          var message = "Usuário já cadastrado, senha incorreta";
+          emitSocketErrorMessage(socket, message);
+        }
+      } else {
+          var userEmail = data.email;
+          var userPassword = data.password;
+          var userName = data.name;
+
+          var user = new UserModel({
+            email: userEmail,
+            password: userPassword,
+            name: userName
+          });
+
+          user.save();
+
+          if (user) {
+              createNewSocketPlayer(socket);
+          }
+        }
+
+      }).catch(err => {
+        console.error(err)
+      });
+
+    } catch (error) {
+      var message = "Erro ao criar novo usuário no mongo, retornou a seguinte exception: " + error;
+      emitSocketErrorMessage(socket, message);
+    }
+  });
+}
+
+var emitSocketErrorMessage = function(socket, message) {
+  socket.emit('msg-error', message);
+  return;
+}
+
+var createNewSocketPlayer = function(socket) {
+
+  socket.on('create-player', function(data) {
+    console.log("criando novo player");
+   // create a new player and add it to our players object
+    players[socket.id] = {
+      flipX: false,
+      x: Math.floor(Math.random() * 400) + 50,
+      y: Math.floor(Math.random() * 500) + 50,
+      playerId: socket.id
+    };
+    // send the players object to the new player
+    socket.emit('currentPlayers', players);
+    // update all other players of the new player
+    socket.broadcast.emit('newPlayer', players[socket.id]);
+
+    // when a player disconnects, remove them from our players object
+    socket.on('disconnect', function () {
+      console.log('user disconnected: ', socket.id);
+      delete players[socket.id];
+      // emit a message to all players to remove this player
+      io.emit('disconnect', socket.id);
+    });
+
+    // when a plaayer moves, update the player data
+    socket.on('playerMovement', function (movementData) {
+      players[socket.id].x = movementData.x;
+      players[socket.id].y = movementData.y;
+      players[socket.id].flipX = movementData.flipX;
+      // emit a message to all players about the player that moved
+      socket.broadcast.emit('playerMoved', players[socket.id]);
+    });
+
+  }); 
+
+  socket.emit('join-game', null);  
+}
 
 // update express settings
 app.use(bodyParser.urlencoded({ extended: false })); // parse application/x-www-form-urlencoded

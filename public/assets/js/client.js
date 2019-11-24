@@ -1,7 +1,54 @@
-const inputMessage = document.getElementById('inputMessage');
-const messages = document.getElementById('messages');
+var socket;
 
-window.addEventListener('keydown', event => {
+function estabelishSocketConnection() {
+      const server_address = document.forms[0].elements[2].value + ":3000";
+      socket = io(server_address);
+  
+      socket.on('connect', function(){
+          document.getElementById('connection_status').value = "CONECTADO";
+      });
+
+      socket.on('disconnect', function(data){
+        window.alert('desconectado do servidor.');
+      });
+}
+
+function signIn() {
+    
+      var data = {
+        email: document.forms[0].elements[0].value,
+        password: document.forms[0].elements[1].value,
+        name: "Andre"
+      };
+
+      // $.ajax({
+      //   type: 'POST',
+      //   url: '/login',
+      //   data,
+      //   success: function (data) {
+      //     window.location.replace('/game.html');
+      //   },
+      //   error: function (xhr) {
+      //     window.alert(JSON.stringify(xhr));
+      //     window.location.replace('/index.html');
+      //   }
+      // });
+
+      this.socket.emit('login', data);
+
+      this.socket.on('join-game', function(data){
+          document.getElementById('login-container').style.display = "none";
+          document.getElementById('game-container').style.display = "block";
+          buildGame();
+      });
+
+      this.socket.on('msg-error', function(data){
+          window.alert('Ops, ocorreu um erro. Mensagem: ' + data);
+      });
+}
+
+var buildGame = function() {
+  window.addEventListener('keydown', event => {
   if (event.which === 13) {
     sendMessage();
   }
@@ -11,30 +58,6 @@ window.addEventListener('keydown', event => {
     }
   }
 });
-
-function sendMessage() {
-  let message = inputMessage.value;
-  if (message) {
-    inputMessage.value = '';
-    $.ajax({
-      type: 'POST',
-      url: '/submit-chatline',
-      data: {
-        message,
-        refreshToken: getCookie('refreshJwt')
-      },
-      success: function(data) {},
-      error: function(xhr) {
-        console.log(xhr);
-      }
-    })
-  }
-}
-
-function addMessageElement(el) {
-  messages.append(el);
-  messages.lastChild.scrollIntoView();
-}
 
 class BootScene extends Phaser.Scene {
   constructor() {
@@ -55,11 +78,6 @@ class BootScene extends Phaser.Scene {
       frameHeight: 16
     });
 
-    this.load.image('golem', 'assets/images/coppergolem.png');
-    this.load.image('ent', 'assets/images/dark-ent.png');
-    this.load.image('demon', 'assets/images/demon.png');
-    this.load.image('worm', 'assets/images/giant-worm.png');
-    this.load.image('wolf', 'assets/images/wolf.png');
     this.load.image('sword', 'assets/images/attack-icon.png');
   }
 
@@ -76,12 +94,8 @@ class WorldScene extends Phaser.Scene {
   }
 
   create() {
-    io.engine.generateId = function (req) {
-      // generate a new custom id here
-      return "Wnctg4eKnD0rK8cMAAAA";
-    }
 
-    this.socket = io();
+    this.socket = socket;
     this.otherPlayers = this.physics.add.group();
 
     // create map
@@ -92,9 +106,6 @@ class WorldScene extends Phaser.Scene {
 
     // user input
     this.cursors = this.input.keyboard.createCursorKeys();
-
-    // create enemies
-    this.createEnemies();
 
     // listen for web socket events
     this.socket.on('currentPlayers', function (players) {
@@ -128,24 +139,7 @@ class WorldScene extends Phaser.Scene {
       }.bind(this));
     }.bind(this));
 
-    this.socket.on('new message', (data) => {
-      const usernameSpan = document.createElement('span');
-      const usernameText = document.createTextNode(data.username);
-      usernameSpan.className = 'username';
-      usernameSpan.appendChild(usernameText);
-
-      const messageBodySpan = document.createElement('span');
-      const messageBodyText = document.createTextNode(data.message);
-      messageBodySpan.className = 'messageBody';
-      messageBodySpan.appendChild(messageBodyText);
-
-      const messageLi = document.createElement('li');
-      messageLi.setAttribute('username', data.username);
-      messageLi.append(usernameSpan);
-      messageLi.append(messageBodySpan);
-
-      addMessageElement(messageLi);
-    });
+    this.socket.emit('create-player');
   }
 
   createMap() {
@@ -246,61 +240,6 @@ class WorldScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     this.cameras.main.startFollow(this.container);
     this.cameras.main.roundPixels = true; // avoid tile bleed
-  }
-
-  createEnemies() {
-    // where the enemies will be
-    this.spawns = this.physics.add.group({
-      classType: Phaser.GameObjects.Sprite
-    });
-    for (var i = 0; i < 20; i++) {
-      const location = this.getValidLocation();
-      // parameters are x, y, width, height
-      var enemy = this.spawns.create(location.x, location.y, this.getEnemySprite());
-      enemy.body.setCollideWorldBounds(true);
-      enemy.body.setImmovable();
-    }
-
-    // move enemies
-    this.timedEvent = this.time.addEvent({
-      delay: 3000,
-      callback: this.moveEnemies,
-      callbackScope: this,
-      loop: true
-    });
-  }
-
-  moveEnemies () {
-    this.spawns.getChildren().forEach((enemy) => {
-      const randNumber = Math.floor((Math.random() * 4) + 1);
-
-      switch(randNumber) {
-        case 1:
-          enemy.body.setVelocityX(50);
-          break;
-        case 2:
-          enemy.body.setVelocityX(-50);
-          break;
-        case 3:
-          enemy.body.setVelocityY(50);
-          break;
-        case 4:
-          enemy.body.setVelocityY(50);
-          break;
-        default:
-          enemy.body.setVelocityX(50);
-      }
-    });
-
-    setTimeout(() => {
-      this.spawns.setVelocityX(0);
-      this.spawns.setVelocityY(0);
-    }, 500);
-  }
-
-  getEnemySprite() {
-    var sprites = ['golem', 'ent', 'demon', 'worm', 'wolf'];
-    return sprites[Math.floor(Math.random() * sprites.length)];
   }
 
   getValidLocation() {
@@ -422,5 +361,7 @@ var config = {
     WorldScene
   ]
 };
+
 var game = new Phaser.Game(config);
 
+}
