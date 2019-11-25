@@ -36,6 +36,7 @@ const io = require('socket.io').listen(server);
 
 const players = {};
 const sockets = [];
+const scoreBoard = [];
 
 io.on('connection', function (socket) {
   console.log('Novo usuário conectado: ', socket.id);  
@@ -115,16 +116,20 @@ var createNewSocketPlayer = function(socket) {
       x: Math.floor(Math.random() * 400) + 50,
       y: Math.floor(Math.random() * 500) + 50,
       playerId: socket.id,
-      playerLife: 100
+      playerLife: 100,
+      playerScore: 0
     };
+
+    var scoreBoardObj = {};
+    scoreBoardObj.name = players[socket.id].playerName;
+    scoreBoardObj.score = players[socket.id].playerScore;
+    scoreBoard.push(scoreBoardObj);
 
     // envia o objeto criado para o socket do jogador
     socket.emit('currentPlayers', players);
 
     // transmite via broadcast o novo jogador para os demais sockets (jogadores) conectados.
     socket.broadcast.emit('newPlayer', players[socket.id]);
-
-    
 
     // Quando o jogador se movimenta, atualiza o objeto com sua nova posição e transmite via broadcast.
     socket.on('playerMovement', function (movementData) {
@@ -148,20 +153,56 @@ var createNewSocketPlayer = function(socket) {
     socket.broadcast.emit('atk', playerIdData);
   });
 
-  // Ação de ataca com colisão em algum jogador, diminui a vida do outro jogador.
-  socket.on('playerAtack', function (atkData) {
+  // Ação de ataque com colisão em algum jogador, diminui a vida do outro jogador.
+  socket.on('playerAttack', function (atkData) {
     players[atkData.playerId].playerLife -= atkData.atkDamage;
 
-    socket.emit('playerAtack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
-    socket.broadcast.emit('playerAtack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
+    socket.emit('playerAttack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
+    socket.broadcast.emit('playerAttack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
 
     if(players[atkData.playerId].playerLife <= 0) {
+      //Reseta a vida do jogador que morreu para 100;
       players[atkData.playerId].playerLife = 100;
+      //Diminui um ponto do score do jogador;
+      players[atkData.playerId].playerScore = players[atkData.playerId].playerScore - 1;
+      //Evento de morte no cliente
       io.to(atkData.playerId).emit('kill');
+
     }
   });
 
   socket.emit('join-game', null);  
+}
+
+var updateKillScore = function(killerId) {
+  players[killerId].playerScore = players[killerId].playerScore + 1;
+  updateScores(killerId, players[killerId].playerScore);
+}
+
+var updateScore = function(playerId, score) {
+  scoreBoard.forEach(function(score){
+    if (score.playerId == playerId) {
+      score.playerScore = score;
+    }
+
+    updateScores();
+
+  });
+}
+
+var updateScores = function(){
+  var scoresData = [];
+
+  scoreBoard.forEach(function(player){
+     var score = {};
+     score.playerName = player.playerName;
+     score.playerScore = player.playerScore;
+
+     scoresData.push(score);
+  });
+
+  //Atualiza scores dos jogadores
+  sockets[0].socket.broadcast.emit('update-scores', scoresData);
 }
 
 app.use(bodyParser.urlencoded({ extended: false }));

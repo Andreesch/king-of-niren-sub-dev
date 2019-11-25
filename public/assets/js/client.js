@@ -151,7 +151,7 @@ class WorldScene extends Phaser.Scene {
       }.bind(this));
     }.bind(this));
 
-    this.socket.on('playerAtack', function(atkData) {
+    this.socket.on('playerAttack', function(atkData) {
       this.otherPlayers.getChildren().forEach(function (player) {
         if (atkData.playerId === player.playerId) {
           player.playerLife = atkData.newLife;
@@ -186,11 +186,18 @@ class WorldScene extends Phaser.Scene {
     // Envia para o servidor que o player deverá ser criado.
     this.socket.emit('create-player');
 
-    //score-board
+    /* score-board (criar)
     this.socket.on('update-scores', function(data){
-      
-    });
+        var scoreBoardData = [];
 
+        data.forEach(function(score){
+            var scoreObj = ""+score.playerName+" - " + score.playerScore;
+            scoreBoardData.push(scoreObj); 
+        });
+
+        console.log(scoreBoardData);
+    });
+    */
   }
 
   createMap() {
