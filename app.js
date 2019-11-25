@@ -160,6 +160,8 @@ var createNewSocketPlayer = function(socket) {
     socket.emit('playerAttack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
     socket.broadcast.emit('playerAttack', {playerId: atkData.playerId, newLife: players[atkData.playerId].playerLife});
 
+    io.to(atkData.playerId).emit('life-update', players[atkData.playerId].playerLife);
+
     if(players[atkData.playerId].playerLife <= 0) {
       //Reseta a vida do jogador que morreu para 100;
       players[atkData.playerId].playerLife = 100;

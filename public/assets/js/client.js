@@ -29,8 +29,7 @@ function socketConnection() {
     */
 }
 
-function signIn() {
-    
+function signIn() {    
       var data = {
         email: document.forms[0].elements[0].value,
         password: document.forms[0].elements[1].value,
@@ -179,6 +178,10 @@ class WorldScene extends Phaser.Scene {
       const location = this.getValidLocation();      
       this.container.x = location.x;
       this.container.y = location.y;
+      
+      // Reinicia contador da vida
+      this.lifeBar.setText("100");
+
       this.update();
     }.bind(this));
 
@@ -279,6 +282,12 @@ class WorldScene extends Phaser.Scene {
     this.container = this.add.container(playerInfo.x, playerInfo.y);
     this.container.setSize(16, 16);
     this.physics.world.enable(this.container);
+
+    // Adiciona texto com vida
+    this.lifeBar = this.add.text(-6, -15, playerInfo.playerLife, { fontSize: '8px'});
+    this.container.add(this.lifeBar);
+    this.player.lifeBar = this.lifeBar;
+
     this.container.add(this.player);
 
     // adiciona espada
@@ -345,6 +354,8 @@ class WorldScene extends Phaser.Scene {
 
   update() {
     if (this.container) {
+      var player = this.player;
+
       this.container.body.setVelocity(0);
 
       // Horizontal movement
@@ -413,6 +424,10 @@ class WorldScene extends Phaser.Scene {
         y: this.container.y,
         flipX: this.player.flipX
       };
+
+      this.socket.on('life-update', function(data){
+        player.lifeBar.setText(data);
+      });
     }
   }
 }
