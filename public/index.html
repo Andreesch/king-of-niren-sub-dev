@@ -21,11 +21,42 @@
     <input type="email" id="email" class="form-control" placeholder="Endereço de email" required autofocus>
     <label for="password" class="sr-only">Senha</label>
     <input type="password" id="password" class="form-control" placeholder="Senha" required>
+    <label for="name" class="sr-only">Nome</label>
+    <input type="text" id="name" class="form-control" placeholder="Nome do usuário" required autofocus>
     <label for="client_address" class="sr-only">IP do servidor</label>
     <input type="text" id="client_address" class="form-control" placeholder="IP do servidor" required>
     <a class="btn btn-lg btn-primary btn-block white-color" onClick="signIn()">Entrar/Registro</a>
     <a class="btn btn-lg btn-secondary btn-block" onClick="socketConnection()">Conectar</a>
-    <p id="connection_status"></p>
+
+    <div class="status-perfect">
+      <div class="panel-heading">
+        <div class="panel-title">
+         <h4>
+         Conectado.
+          </h4>
+        </div>
+      </div>                
+    </div>
+
+    <div class="status-loading">
+      <div class="panel-heading">
+        <div class="panel-title">
+         <h4>
+         Carregando
+          </h4>
+        </div>
+      </div>                
+    </div>
+
+    <div class="status-critical">
+      <div class="panel-heading">
+        <div class="panel-title">
+         <h4>
+         Erro de conexão
+          </h4>
+        </div>
+      </div>                
+    </div>
     <!-- <a href="/forgot-password.html">Esqueceu sua senha? resete-a aqui.</a> -->
   </form>
 

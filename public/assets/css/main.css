@@ -53,3 +53,44 @@ body {
 .white-color {
   color: #fff !important;
 }
+
+.status-perfect {
+  background-color: #33CC33;
+  height: 100%;
+  width: 100%;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  color: black;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: .5rem;
+  display: none;
+}
+
+
+.status-loading {
+  background-color: #d6d626;
+  height: 100%;
+  width: 100%;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  color: black;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: .5rem;
+  display: none;
+}
+
+.status-critical {
+  background-color: #FF0000;
+  height: 100%;
+  width: 100%;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  color: black;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-top: .5rem;
+  display: none;
+}
+

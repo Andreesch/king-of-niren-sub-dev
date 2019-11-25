@@ -1,17 +1,32 @@
 var socket;
 
 function socketConnection() {
-      const server_address = document.forms[0].elements[2].value + ":3000";
-      socket = io(server_address);
-  
-      socket.on('connect', function(){
-          document.getElementById('connection_status').value = "CONECTADO";
-      });
+    const server_address = document.forms[0].elements[3].value;
+    socket = io(server_address);
 
-     /* socket.on('disconnect', function(data){
-        window.alert('desconectado do servidor.');
-      });
-      */
+    // Esconde o de erro, mostra o de carregando.
+    $('.status-critical').hide();
+    $('.status-loading').show();
+
+    socket.on('connect', function(){
+        $('.status-perfect').show();
+        $('.status-critical').hide();
+        $('.status-loading').hide();
+    });
+
+    // Espera que o SOCKET responda em 3 segundos, do contrário mostra erro de conexão.
+    setTimeout(function(){
+      if (socket.disconnected) {
+        $('.status-loading').hide();
+        $('.status-perfect').hide();
+        $('.status-critical').show();
+      }
+    }, 3000);
+
+    /* socket.on('disconnect', function(data){
+      window.alert('desconectado do servidor.');
+    });
+    */
 }
 
 function signIn() {
@@ -19,7 +34,7 @@ function signIn() {
       var data = {
         email: document.forms[0].elements[0].value,
         password: document.forms[0].elements[1].value,
-        name: "Andre"
+        name: document.forms[0].elements[2].value
       };
 
       this.socket.emit('login', data);
